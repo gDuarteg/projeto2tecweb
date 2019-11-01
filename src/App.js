@@ -4,6 +4,12 @@ import "./App.css";
 
 
 export class App extends Component {
+  constructor(props){
+    super(props)
+    this.getSMA.bind(this)
+    this.getTimeSeries.bind(this)
+    this.getEMA.bind(this)
+  }
   state = {
     din: 10000,
     empresa: "MSFT",
@@ -13,6 +19,7 @@ export class App extends Component {
     mode: "DAILY",
     info: null,
     SMA: null,
+    EMA: null,
     carteira: [
       {
         "symbol":"MSFT",
@@ -21,7 +28,7 @@ export class App extends Component {
       },{
         "symbol":"FB",
         "value":200,
-        "qnt": 5
+        "qnt": 10
       }
     ]
   }
@@ -30,16 +37,38 @@ export class App extends Component {
     console.log("AQUI")
     const key = "WLJB1PBIOFAOMG55"
     const res = await api.get(`query?function=TIME_SERIES_${this.state.mode}&symbol=${this.state.empresa}&apikey=${key}`)
-    console.log(res.data)
     this.setState({...this.state, info: res.data})
   }
-
-  fazedouro(props) {
-    console.log("FOOI");
-    const empName = props[0]['symbol']
-    console.log(empName)
+  async getSMA() {
+    console.log("AQUI")
+    const period= 10
+    const key = "WLJB1PBIOFAOMG55"
+    const ind = await api.get(`query?function=SMA&symbol=${this.state.empresa}&interval=${this.state.mode.toLowerCase()}&time_period=${period}&series_type=open&apikey=${key}`)
+    const sma = ind.data["Technical Analysis: SMA"]["2012-06-01"]["SMA"]
+    this.setState({...this.state, SMA: ind.data})
+  }
+  async getEMA() {
+    console.log("AQUI")
+    const period= 10
+    const key = "WLJB1PBIOFAOMG55"
+    const ind = await api.get(`query?function=EMA&symbol=${this.state.empresa}&interval=${this.state.mode.toLowerCase()}&time_period=${period}&series_type=open&apikey=${key}`)
+    this.setState({...this.state, EMA: ind.data})
   }
 
+  NumberList(props) {
+    const listItems = props.map((e) =>
+      <div style={{background:"gray",borderRadius: "10px",boxShadow: "5px 5px 10px rgba(0,0,0,0.5)",marginLeft:"15px",width:"150px",fontSize: "13px"}}>
+        <div style={{marginLeft:"10px"}}>
+          <p>{e.symbol}</p>
+          <p>Valor: {e.value}</p>
+          <p>Quantidade: {e.qnt}</p>
+        </div>
+      </div>
+    );
+    return (
+      <l>{listItems}</l>
+    );
+  }
   executa() {
     var {din} = this.state
     const emp = this.state.empresa.toUpperCase()
@@ -48,19 +77,12 @@ export class App extends Component {
     const md = this.state.oper
     const {carteira} = this.state
     var ind = false
-    console.log(v)
-    console.log(q)
-    console.log(md)
-    console.log(carteira)
-    console.log(carteira[0]['symbol'])
-    console.log(emp)
-    console.log(din)
     if (md==='compra'){
       for (var i =0; i < carteira.length; i++){
         if (carteira[i]['symbol'] === emp){
           carteira[i]['symbol'] = emp
-          carteira[i]['value'] = carteira[i]['value'] + (v*q)
-          carteira[i]['qnt']= carteira[i]['qnt'] + q
+          carteira[i]['value']+= (v*q)
+          carteira[i]['qnt'] += (v*q/v)
           din -= (v*q)
           ind = true
         }
@@ -74,14 +96,14 @@ export class App extends Component {
           'qnt':q    
         }
       }
-      console.log(carteira)
-      console.log(din)
+
+    }
       if (md==='venda'){
         for (var i =0; i < carteira.length; i++){
           if (carteira[i]['symbol'] === emp){
             carteira[i]['symbol'] = emp
-            carteira[i]['value'] = carteira[i]['value'] - (v*q)
-            carteira[i]['qnt']= carteira[i]['qnt'] - q
+            carteira[i]['value'] = (carteira[i]['value'] - (v*q))
+            carteira[i]['qnt'] -= (v*q/v)
             din += (v*q)
             ind = true
           }
@@ -92,11 +114,14 @@ export class App extends Component {
     this.setState({carteira})
     this.setState({din})
   }
-}
+
   
   render() {
     const info = this.state.info
     const carteira = this.state.carteira
+    const SMA = this.state.SMA
+    const EMA = this.state.EMA
+    console.log(SMA)
     
     return (
       <div>
@@ -112,18 +137,15 @@ export class App extends Component {
                   }>TegTrade Pro</header>
         <div style={{padding:"15px 15px"}}>
           Carteira: ${this.state.din}
+        </div>        
+        <div>
+          {this.NumberList(carteira)}
         </div>
-        
-        <div style={{background:"gray",borderRadius: "10px",boxShadow: "5px 5px 10px rgba(0,0,0,0.5)",marginLeft:"15px",width:"150px",fontSize: "13px"}}>
-          teste
-        </div>
-
-
 
         <div style={{marginLeft:"300px", position:"absolute", top: "150px"}}>
           <input type="text" onChange={(e) => this.setState({...this.state, empresa: e.target.value})} placeholder="Código da Empresa"></input>
-          <button onClick={this.getTimeSeries.bind(this)}>Consultar</button>
-          {
+          <button onClick={() => {this.getTimeSeries(); this.getEMA(); this.getSMA()}}>Consultar</button>
+          { 
           info != null ? 
           <div style={{background:"gray", width:"500px",borderRadius: "10px",boxShadow: "5px 5px 10px rgba(0,0,0,0.5)"}}> 
             <h3 style={{textAlign:"center"}}>{info["Meta Data"]["2. Symbol"].toUpperCase()}</h3>
@@ -142,13 +164,16 @@ export class App extends Component {
               <p>LOW: {info["Time Series (Daily)"][info["Meta Data"]["3. Last Refreshed"]]["3. low"]}</p>
               <p>CLOSE: {info["Time Series (Daily)"][info["Meta Data"]["3. Last Refreshed"]]["4. close"]}</p>
               <p>VOLUME: {info["Time Series (Daily)"][info["Meta Data"]["3. Last Refreshed"]]["4. close"]}</p>
+              
+              
               <div style={{position:"absolute",top:"130px", left:"250px"}}>
-                <p>SMA: </p>
-                <p>TESTE</p>
-                <p>TESTE</p>
-                <p>TESTE</p>
-                <p>TESTE</p>
+                {SMA != null?
+                <p>SMA: {SMA["Technical Analysis: SMA"][SMA["Meta Data"]["3: Last Refreshed"]]["SMA"]}</p>:null}
+                {EMA != null?
+                <p>EMA: {EMA["Technical Analysis: EMA"][EMA["Meta Data"]["3: Last Refreshed"]]["EMA"]}</p>
+                :null}
               </div>
+              
             </div>
             
           </div>
